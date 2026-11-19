@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+
+# Large datasets & run artifacts
+pcb_ind_project/
+raw/
+runs/
+mes_images_pcb_ind/
+*.zip
+
+# Old / draft notebooks
+*Projet_Douik.ipynb
+*_(2).ipynb
