@@ -4,8 +4,53 @@
 [![YOLO11](https://img.shields.io/badge/Ultralytics-YOLO11-00FFFF.svg)](https://docs.ultralytics.com/)
 [![Fuzzy Logic](https://img.shields.io/badge/Fuzzy%20Logic-Mamdani-orange.svg)](https://pythonhosted.org/scikit-fuzzy/)
 [![Dataset](https://img.shields.io/badge/Dataset-PCB--IND%20v4-success.svg)](https://doi.org/10.5281/zenodo.19723114)
+[![Standard](https://img.shields.io/badge/Quality%20Standard-IPC--A--610-blueviolet.svg)](https://www.ipc.org/)
 
-Système d'**inspection optique automatisée (AOI)** pour circuits imprimés (PCB), combinant le modèle de détection d'objets **YOLO11m** et un moteur d'aide à la décision par **logique floue (Mamdani)** pour la qualification du niveau de risque et la conformité industrielle.
+Système d'**inspection optique automatisée (AOI)** pour circuits imprimés (PCB), combinant le modèle de détection d'objets **YOLO11m** et un moteur d'aide à la décision par **logique floue (Mamdani)** avec **architecture industrielle à double seuil** pour une politique "Zéro Défaut" (Zero Defect Policy).
+
+---
+
+## 🏭 Stratégie Industrielle : Double Seuil & Politique Zéro Défaut
+
+Dans les lignes d'assemblage CMS (SMT) réelles, deux pièges majeurs menacent la rentabilité :
+1. **Le faux négatif (critique)** : un PCB défectueux mais peu contrasté échappe à la machine et part chez le client final.
+2. **La fausse alerte abusive (coûteuse)** : rejeter et mettre au rebut des cartes conformes à la moindre ombre.
+
+Pour résoudre ce dilemme, le système implémente une **architecture à double seuil** conforme aux meilleures pratiques industrielles (Post-AOI Review Station) :
+
+```
+                                  Image PCB (ROI 300x300)
+                                             │
+                                             ▼
+                     [ Détection YOLO11m sensible (conf >= 0.10) ]
+                                             │
+                    ┌────────────────────────┴────────────────────────┐
+                    ▼                                                 ▼
+        Aucune détection (< 0.10)                            Détections trouvées
+                    │                                                 │
+                    ▼                                                 ▼
+        ┌───────────────────────┐                     ┌───────────────────────────────┐
+        │       ACCEPTER        │                     │   Séparation des Détections   │
+        │  Carte 100% conforme  │                     └───────────────┬───────────────┘
+        └───────────────────────┘                                     │
+                                            ┌─────────────────────────┴─────────────────────────┐
+                                            ▼                                                   ▼
+                               Détections Suspectes                                    Défauts Confirmés
+                             (0.10 <= conf < 0.55)                                      (conf >= 0.55)
+                                            │                                                   │
+                                            ▼                                                   ▼
+                             ┌─────────────────────────────┐                    ┌───────────────────────────────┐
+                             │    VÉRIFICATION MANUELLE    │                    │     Moteur Flou (Mamdani)     │
+                             │ (Post-AOI Review Station)   │                    │ (Nombre, Gravité, Confiance)  │
+                             └─────────────────────────────┘                    └───────────────┬───────────────┘
+                                                                                                │
+                                                                   ┌────────────────────────────┴────────────────────────────┐
+                                                                   ▼                                                         ▼
+                                                       ┌───────────────────────┐                                 ┌───────────────────────┐
+                                                       │  RÉPARER / INSPECTER  │                                 │        REJETER        │
+                                                       │ (30 <= Risque < 65)   │                                 │    (Risque >= 65)     │
+                                                       └───────────────────────┘                                 └───────────────────────┘
+```
 
 ---
 
@@ -20,7 +65,8 @@ L'entraînement optimisé avec une taille de lot de **Batch = 8** sur GPU NVIDIA
 | **Précision globale** | **84.16 %** | Taux de vrais positifs parmi les prédictions (seuil 0.550) |
 | **Rappel global** | **62.16 %** | Taux de détection des défauts réels (seuil 0.550) |
 | **F1-Score optimal** | **71.50 %** | Compromis optimal précision-rappel |
-| **Seuil de confiance optimal** | **0.550** | Optimisé automatiquement sur le jeu de validation |
+| **Seuil de certitude opérationnel** | **0.550** | Optimisé automatiquement sur le jeu de validation |
+| **Seuil de suspicion préventif** | **0.100** | Capture toutes les anomalies diffuses pour contrôle humain |
 | **Latence d'inférence** | **19.00 ms / image** | Traitement temps réel (~52 FPS) |
 
 ### Performances détaillées par classe de défaut (Seuil optimal 0.550) :
@@ -35,26 +81,6 @@ L'entraînement optimisé avec une taille de lot de **Batch = 8** sur GPU NVIDIA
 | `spurious_copper` (Cuivre parasite) | **76.67 %** | 53.49 % | 63.01 % | 23 | 7 | 20 |
 | `stain` (Tache) | 72.00 % | 34.62 % | 46.75 % | 18 | 7 | 34 |
 | `open` (Circuit ouvert) | **100.00 %** | 28.57 % | 44.44 % | 4 | 0 | 10 |
-
----
-
-## 🛠️ Architecture du Pipeline
-
-```
-Images PCB (ROI 300x300) 
-       │
-       ▼
-[ Détection YOLO11m (Batch 8) ] ──► Boîtes englobantes, Classes, Confiances
-       │
-       ▼
-[ Optimisation du Seuil ] ────────► Seuil optimal (0.550) maximisant le F1-Score
-       │
-       ▼
-[ Moteur Flou Mamdani ] ──────────► Gravité max + Nombre de défauts + Confiance moyenne
-       │
-       ▼
-[ Décision Opérationnelle ] ──────► ACCEPTER | RÉPARER / INSPECTER | REJETER
-```
 
 ---
 
@@ -89,11 +115,11 @@ Pour aller au-delà de la simple détection visuelle, un système d'inférence f
    - `confiance` : Indice de certitude moyen des détections [0 à 1] (*faible*, *moyenne*, *forte*).
 2. **Variable de sortie (Conséquent)** :
    - `risque` : Indice de risque calculé [0 à 100] (*faible*, *moyen*, *élevé*).
-3. **Qualification finale** :
-   - Risque < 30 : **ACCEPTER** (Conforme)
-   - 30 ≤ Risque < 65 : **RÉPARER / INSPECTER** (Contrôle manuel requis)
-   - Risque ≥ 65 : **REJETER** (Non conforme critique)
-   - Confiance < 0.45 : **VÉRIFICATION MANUELLE PRIORITAIRE**
+3. **Qualification industrielle** :
+   - **ACCEPTER** (Risque < 30) : Conforme certifié.
+   - **VÉRIFICATION MANUELLE** : Présence de doutes/suspicions ou confiance globale < 0.45.
+   - **RÉPARER / INSPECTER** (30 ≤ Risque < 65) : Carte réparable (défauts modérés).
+   - **REJETER** (Risque ≥ 65) : Défaut bloquant (court-circuit ou cumul sévère).
 
 ---
 
@@ -101,9 +127,9 @@ Pour aller au-delà de la simple détection visuelle, un système d'inférence f
 
 ```
 .
-├── Projet_PCB_IND_YOLO11_Logique_Floue_Batch8.ipynb   # Notebook principal complet (Entraînement Batch 8 + Évaluation + Logique Floue)
+├── Projet_PCB_IND_YOLO11_Logique_Floue_Batch8.ipynb   # Notebook principal complet (Entraînement Batch 8 + Évaluation + Moteur Flou Industriel)
 ├── requirements.txt                                  # Dépendances Python du projet
-├── README.md                                         # Documentation et rapport de performance
+├── README.md                                         # Documentation et rapport de performance industrielle
 └── .gitignore                                        # Fichiers exclus (modèles .pt, datasets bruts, runs)
 ```
 
@@ -131,3 +157,4 @@ Ouvrez `Projet_PCB_IND_YOLO11_Logique_Floue_Batch8.ipynb` sous **VS Code**, **Ju
 - **Dataset PCB-IND v4** : [Zenodo - DOI: 10.5281/zenodo.19723114](https://doi.org/10.5281/zenodo.19723114)
 - **Ultralytics YOLO11** : [Documentation officielle](https://docs.ultralytics.com/)
 - **Scikit-Fuzzy** : [Fuzzy Logic Toolbox for Python](https://pythonhosted.org/scikit-fuzzy/)
+- **Norme IPC-A-610** : [Acceptabilité des assemblages électroniques](https://www.ipc.org/)
