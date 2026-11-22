@@ -21,6 +21,7 @@ raw/
 runs/
 mes_images_pcb_ind/
 *.zip
+*.pt
 
 # Old / draft notebooks
 *Projet_Douik.ipynb

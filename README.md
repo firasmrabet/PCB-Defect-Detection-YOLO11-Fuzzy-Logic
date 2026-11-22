@@ -2,34 +2,63 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![YOLO11](https://img.shields.io/badge/Ultralytics-YOLO11-00FFFF.svg)](https://docs.ultralytics.com/)
-[![Scikit-Fuzzy](https://img.shields.io/badge/Fuzzy%20Logic-Mamdani-orange.svg)](https://pythonhosted.org/scikit-fuzzy/)
+[![Fuzzy Logic](https://img.shields.io/badge/Fuzzy%20Logic-Mamdani-orange.svg)](https://pythonhosted.org/scikit-fuzzy/)
 [![Dataset](https://img.shields.io/badge/Dataset-PCB--IND%20v4-success.svg)](https://doi.org/10.5281/zenodo.19723114)
 
-Système complet d'**inspection optique automatisée (AOI)** pour circuits imprimés (PCB), combinant le modèle de détection d'objets **YOLO11m** et un moteur d'aide à la décision par **logique floue (Mamdani)** pour la qualification du niveau de risque et la conformité industrielle.
+Système d'**inspection optique automatisée (AOI)** pour circuits imprimés (PCB), combinant le modèle de détection d'objets **YOLO11m** et un moteur d'aide à la décision par **logique floue (Mamdani)** pour la qualification du niveau de risque et la conformité industrielle.
 
 ---
 
-## Architecture du Pipeline
+## 🚀 Performances & Résultats (Modèle Optimisé - Batch 8)
+
+L'entraînement optimisé avec une taille de lot de **Batch = 8** sur GPU NVIDIA RTX (8 Go VRAM) a permis une convergence stable et rapide, atteignant des performances de pointe sur l'ensemble de test officiel :
+
+| Métrique | Valeur Test | Description |
+|---|:---:|---|
+| **mAP@50** | **72.34 %** | Précision moyenne à IoU 0.50 |
+| **mAP@50-95** | **49.73 %** | Précision moyenne sur l'intervalle IoU [0.50, 0.95] |
+| **Précision globale** | **84.16 %** | Taux de vrais positifs parmi les prédictions (seuil 0.550) |
+| **Rappel global** | **62.16 %** | Taux de détection des défauts réels (seuil 0.550) |
+| **F1-Score optimal** | **71.50 %** | Compromis optimal précision-rappel |
+| **Seuil de confiance optimal** | **0.550** | Optimisé automatiquement sur le jeu de validation |
+| **Latence d'inférence** | **19.00 ms / image** | Traitement temps réel (~52 FPS) |
+
+### Performances détaillées par classe de défaut (Seuil optimal 0.550) :
+
+| Classe | Précision | Rappel | F1-Score | TP | FP | FN |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `scratch` (Rayure) | **97.96 %** | 52.17 % | 68.09 % | 48 | 1 | 44 |
+| `copper_burr` (Bavure cuivre) | **84.93 %** | **81.58 %** | **83.22 %** | 62 | 11 | 14 |
+| `missing_copper` (Manque cuivre) | **83.06 %** | **78.03 %** | **80.47 %** | 103 | 21 | 29 |
+| `short` (Court-circuit) | **83.78 %** | 65.96 % | 73.81 % | 31 | 6 | 16 |
+| `mouse_bite` (Entaille) | **82.26 %** | 56.04 % | 66.67 % | 51 | 11 | 40 |
+| `spurious_copper` (Cuivre parasite) | **76.67 %** | 53.49 % | 63.01 % | 23 | 7 | 20 |
+| `stain` (Tache) | 72.00 % | 34.62 % | 46.75 % | 18 | 7 | 34 |
+| `open` (Circuit ouvert) | **100.00 %** | 28.57 % | 44.44 % | 4 | 0 | 10 |
+
+---
+
+## 🛠️ Architecture du Pipeline
 
 ```
 Images PCB (ROI 300x300) 
        │
        ▼
-[ Détection YOLO11m ] ────► Boîtes englobantes, Classes, Confiances
+[ Détection YOLO11m (Batch 8) ] ──► Boîtes englobantes, Classes, Confiances
        │
        ▼
-[ Optimisation du Seuil ] ──► Seuil optimal maximisant le F1-Score sur validation
+[ Optimisation du Seuil ] ────────► Seuil optimal (0.550) maximisant le F1-Score
        │
        ▼
-[ Moteur Flou Mamdani ] ──► Gravité max + Nombre de défauts + Confiance moyenne
+[ Moteur Flou Mamdani ] ──────────► Gravité max + Nombre de défauts + Confiance moyenne
        │
        ▼
-[ Décision Opérationnelle ] ──► ACCEPTER | RÉPARER / INSPECTER | REJETER
+[ Décision Opérationnelle ] ──────► ACCEPTER | RÉPARER / INSPECTER | REJETER
 ```
 
 ---
 
-## Dataset : PCB-IND v4
+## 📦 Dataset : PCB-IND v4
 
 Le projet exploite le dataset industriel réel **PCB-IND v4** composé de **4 789 images ROI** (300 × 300 px) réparties en :
 - **Train** : 3 833 images
@@ -37,50 +66,50 @@ Le projet exploite le dataset industriel réel **PCB-IND v4** composé de **4 78
 - **Test officiel** : 478 images
 
 ### Classes de défauts supervisées :
-| ID | Classe | Description & Impact industriel |
-|---:|---|---|
-| 0 | `mouse_bite` | Entaille sur piste conductrice |
-| 1 | `missing_copper` | Manque de cuivre |
-| 2 | `scratch` | Rayure superficielle |
-| 3 | `spurious_copper` | Cuivre parasite |
-| 4 | `copper_burr` | Bavure de cuivre |
-| 5 | `stain` | Tache superficielle |
-| 6 | `short` | Court-circuit (critique) |
-| 7 | `open` | Circuit ouvert (critique) |
+| ID | Classe | Criticité | Description |
+|---:|---|:---:|---|
+| 0 | `mouse_bite` | Moyenne | Entaille sur piste conductrice |
+| 1 | `missing_copper` | Moyenne | Manque de cuivre |
+| 2 | `scratch` | Faible | Rayure superficielle |
+| 3 | `spurious_copper` | Moyenne | Cuivre parasite résiduel |
+| 4 | `copper_burr` | Moyenne | Bavure de cuivre |
+| 5 | `stain` | Faible | Tache superficielle non conductrice |
+| 6 | `short` | **Critique** | Court-circuit entre deux pistes |
+| 7 | `open` | **Critique** | Coupure de piste / circuit ouvert |
 
 ---
 
-## Système d'Aide à la Décision Floue (Mamdani)
+## 🧠 Système d'Aide à la Décision Floue (Mamdani)
 
-Pour aller au-delà de la simple détection visuelle, un système d'inférence floue de type Mamdani évalue la criticité globale de la carte :
+Pour aller au-delà de la simple détection visuelle, un système d'inférence floue de type Mamdani qualifie la criticité globale de la carte :
 
 1. **Variables d'entrée (Antécédents)** :
    - `nombre` : Nombre de défauts détectés sur la ROI [0 à 12] (*faible*, *moyen*, *élevé*).
-   - `gravite` : Score de sévérité maximale selon la nature des défauts [0 à 10] (*faible*, *moyenne*, *critique*). Les courts-circuits (`short`) et coupures (`open`) ont le poids le plus élevé.
+   - `gravite` : Score de sévérité maximale selon la nature des défauts [0 à 10] (*faible*, *moyenne*, *critique*). Les courts-circuits (`short`) et coupures (`open`) ont le poids maximal.
    - `confiance` : Indice de certitude moyen des détections [0 à 1] (*faible*, *moyenne*, *forte*).
 2. **Variable de sortie (Conséquent)** :
    - `risque` : Indice de risque calculé [0 à 100] (*faible*, *moyen*, *élevé*).
 3. **Qualification finale** :
-   - Risque < 30 : **ACCEPTER**
-   - 30 ≤ Risque < 65 : **RÉPARER / INSPECTER**
-   - Risque ≥ 65 : **REJETER**
-   - Confiance < 0.45 : **VÉRIFICATION MANUELLE**
+   - Risque < 30 : **ACCEPTER** (Conforme)
+   - 30 ≤ Risque < 65 : **RÉPARER / INSPECTER** (Contrôle manuel requis)
+   - Risque ≥ 65 : **REJETER** (Non conforme critique)
+   - Confiance < 0.45 : **VÉRIFICATION MANUELLE PRIORITAIRE**
 
 ---
 
-## Structure du Répertoire
+## 📂 Structure du Répertoire
 
 ```
 .
-├── Projet_PCB_IND_YOLO11_Logique_Floue.ipynb   # Notebook complet et propre (code + visualisations)
-├── requirements.txt                            # Dépendances Python du projet
-├── README.md                                   # Documentation du projet
-└── .gitignore                                  # Fichiers exclus du versionnement
+├── Projet_PCB_IND_YOLO11_Logique_Floue_Batch8.ipynb   # Notebook principal complet (Entraînement Batch 8 + Évaluation + Logique Floue)
+├── requirements.txt                                  # Dépendances Python du projet
+├── README.md                                         # Documentation et rapport de performance
+└── .gitignore                                        # Fichiers exclus (modèles .pt, datasets bruts, runs)
 ```
 
 ---
 
-## Installation & Exécution
+## 💻 Installation & Exécution
 
 ### 1. Cloner le dépôt
 ```bash
@@ -94,11 +123,11 @@ pip install -r requirements.txt
 ```
 
 ### 3. Lancer le Notebook
-Ouvrez le fichier `Projet_PCB_IND_YOLO11_Logique_Floue.ipynb` sous **VS Code**, **JupyterLab** ou **Google Colab** (avec accélération GPU T4 recommandée pour l'entraînement).
+Ouvrez `Projet_PCB_IND_YOLO11_Logique_Floue_Batch8.ipynb` sous **VS Code**, **JupyterLab** ou **Google Colab** (avec accélération GPU).
 
 ---
 
-## Références
+## 📚 Références
 - **Dataset PCB-IND v4** : [Zenodo - DOI: 10.5281/zenodo.19723114](https://doi.org/10.5281/zenodo.19723114)
 - **Ultralytics YOLO11** : [Documentation officielle](https://docs.ultralytics.com/)
 - **Scikit-Fuzzy** : [Fuzzy Logic Toolbox for Python](https://pythonhosted.org/scikit-fuzzy/)
